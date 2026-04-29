@@ -249,15 +249,32 @@ async function publishToEtsy(productId) {
   console.log("Waiting 45s for mockups...");
   await new Promise(function(r) { setTimeout(r, 45000); });
   console.log("Publishing to Etsy...");
-  var res = await fetch(
-    "https://api.printify.com/v1/shops/" + SHOP_ID + "/products/" + productId + "/publish.json",
-    {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + PRINTIFY_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ title: true, description: true, images: true, variants: true, tags: true, keyFeatures: true, shipping_template: true })
+  for (var attempt = 1; attempt <= 3; attempt++) {
+    var res = await fetch(
+      "https://api.printify.com/v1/shops/" + SHOP_ID + "/products/" + productId + "/publish.json",
+      {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + PRINTIFY_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ title: true, description: true, images: true, variants: true, tags: true, keyFeatures: true, shipping_template: true })
+      }
+    );
+    var text = await res.text();
+    console.log("Publish attempt " + attempt + " (status " + res.status + "):", text);
+    if (res.status === 200 || res.status === 204) {
+      // Check actual product status after publishing
+      await new Promise(function(r) { setTimeout(r, 10000); });
+      var checkRes = await fetch(
+        "https://api.printify.com/v1/shops/" + SHOP_ID + "/products/" + productId + ".json",
+        { headers: { "Authorization": "Bearer " + PRINTIFY_API_KEY } }
+      );
+      var product = await checkRes.json();
+      console.log("Product status:", product.status);
+      console.log("Publishing status:", product.publishing_status);
+      console.log("Visible:", product.visible);
+      break;
     }
-  );
-  console.log("Publish response (status " + res.status + "):", await res.text());
+    if (attempt < 3) await new Promise(function(r) { setTimeout(r, 20000); });
+  }
 }
 
 async function run() {
